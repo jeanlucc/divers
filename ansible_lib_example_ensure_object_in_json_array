@@ -1,0 +1,118 @@
+#!/usr/bin/python
+
+ANSIBLE_METADATA = {
+    'metadata_version': '1.1',
+    'status': ['preview'],
+    'supported_by': 'FastIT'
+}
+
+DOCUMENTATION = '''
+---
+module: ensure_object_in_json_array
+
+short_description: Add object to json array
+
+version_added: "2.4"
+
+description:
+    - "Ensure obj is present in the elements of the array of the json at path"
+    - "If the obj is already present, does not change the json file"
+
+options:
+    path:
+        description:
+            - the path of the file to update
+        required: true
+    obj:
+        description:
+            - the object to add
+        required: true
+
+author:
+    - Jean-Luc Colombier
+'''
+
+EXAMPLES = '''
+- name: Add application to gaia-mock applications
+  ensure_object_in_json_array:
+    path: /path/to/applications.json
+    obj:
+      name: myapp
+      populate: /not/api/auth
+
+- name: Add random objects to json array
+  ensure_object_in_json_array:
+    path: /path/to/file_with_array_of_objects.json
+    obj: "{{ item }}"
+  with_items:
+    - plop: toto
+      soupe:
+        ingredients: [carotte, poireau, potiron]
+        temperature: 23
+    - yolo: swag
+    - random:
+        more:
+          random:
+            - again
+            - and
+            - again
+'''
+
+RETURN = '''
+'''
+
+import json
+
+from ansible.module_utils.basic import AnsibleModule
+
+def run_module():
+    module_args = dict(
+        path=dict(type='str', required=True),
+        obj=dict(type='dict', required=True)
+    )
+
+    result = dict(changed=False)
+
+    module = AnsibleModule(
+        argument_spec=module_args,
+        supports_check_mode=True
+    )
+
+    path = module.params['path']
+    obj = module.params['obj']
+    foundObjInArray = False
+
+    try:
+        with open(path) as f:
+            try:
+                jsonArray = json.load(f)
+            except ValueError:
+                jsonArray = []
+            if not isinstance(jsonArray, list):
+                jsonArray = []
+            for (jsonElement) in jsonArray:
+                if jsonElement == obj:
+                    foundObjInArray = True
+    except IOError:
+        module.fail_json(msg='could not open file: ' + path + ' to read', **result)
+
+    if foundObjInArray:
+        result['changed'] = False
+        module.exit_json(**result)
+
+    try:
+        with open(path, 'w') as f:
+            result['changed'] = True
+            if module.check_mode:
+                module.exit_json(**result)
+            jsonArray.append(obj)
+            json.dump(jsonArray, f, indent=2)
+            module.exit_json(**result)
+    except IOError:
+        module.fail_json(msg='could not open file: ' + path + ' to write', **result)
+
+def main():
+    run_module()
+
+if __name__ == '__main__':
+    main()
